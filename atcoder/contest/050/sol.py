@@ -2,10 +2,8 @@
 # input_file = "atcoder/contest/050/input.txt"
 # sys.stdin = open(input_file, "r")
 
-n, m = map(int, input().split())
-grid = [list(input().strip()) for _ in range(n)]
 
-dirs = ((0, 1), (1, 0), (0, -1), (-1, 0))
+DIRS = ((0, 1), (1, 0), (0, -1), (-1, 0))
 
 
 class Environment:
@@ -39,27 +37,27 @@ class Environment:
 
     def update_probabilities(self):
         next_prob = [[0.0] * self.n for _ in range(self.n)]
+
         for i in range(self.n):
             for j in range(self.n):
-                if self.prob[i][j] == 0.0:
+                if self.prob[i][j] <= 1e-5:
                     continue
 
-                for di, dj in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                    i2, j2 = i, j
-                    while self.is_valid(i2 + di, j2 + dj) and self.is_empty(
-                        i2 + di, j2 + dj
-                    ):
-                        i2 += di
-                        j2 += dj
+                new_prob = self.prob[i][j] / 4.0
 
-                    next_prob[i2][j2] += self.prob[i][j] * 0.25
+                for di, dj in DIRS:
+                    ni, nj = i, j
+                    while self.is_valid(ni + di, nj + dj) and self.is_empty(
+                        ni + di, nj + dj
+                    ):
+                        ni += di
+                        nj += dj
+
+                    next_prob[ni][nj] += new_prob
 
         self.prob = next_prob
 
     def place_rock(self, r, c):
-        if self.is_rock(r, c):
-            raise ValueError("Rock already exists at this position.")
-
         self.update_probabilities()
 
         self.life -= self.prob[r][c]
@@ -77,11 +75,8 @@ class Environment:
         return int(self.total_score / ub * 1e6)
 
 
-if __name__ == "__main__":
-    env = Environment(grid)
-
+def greedy(env):
     sequence = []
-
     while True:
         min_prob = float("inf")
         min_cell = None
@@ -92,7 +87,21 @@ if __name__ == "__main__":
                     min_cell = (i, j)
         if min_cell is None:
             break
+
         r, c = min_cell
-        score = env.place_rock(r, c)
+        _ = env.place_rock(r, c)
         sequence.append((r, c))
+    return sequence
+
+
+if __name__ == "__main__":
+    n, m = map(int, input().split())
+    grid = [list(input().strip()) for _ in range(n)]
+
+    env = Environment(grid)
+    solver = greedy
+
+    sequence = solver(env)
+
+    for r, c in sequence:
         print(r, c)
