@@ -1,6 +1,5 @@
 *.out
 sub/
-*.png
 .venv/
 __pycache__/
 output.txt
