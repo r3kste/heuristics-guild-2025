@@ -156,10 +156,8 @@ vector<Bastion> greedy(vector<Bastion> bastions, string preference = "normal") {
 }
 
 vector<Bastion> simulated_annealing(vector<Bastion> &bastions, int time_limit = 3000,
-                                    double initial_temp = 1.0,
-                                    double cooling_rate = 0.995) {
-    // mt19937 gen(chrono::high_resolution_clock::now().time_since_epoch().count());
-    mt19937 gen(12);
+                                    int threshold = 1000) {
+    mt19937 gen(chrono::high_resolution_clock::now().time_since_epoch().count());
     uniform_real_distribution<> prob_dis(0.0, 1.0);
     uniform_int_distribution<> dis(0, bastions.size() - 1);
 
@@ -169,7 +167,9 @@ vector<Bastion> simulated_annealing(vector<Bastion> &bastions, int time_limit = 
     vector<Bastion> best_tour = current_tour;
     double best_value = current_value;
 
-    double temperature = initial_temp;
+    double temperature = 1000.0;
+    double cooling_rate = 0.9999;
+
     auto end_time =
         chrono::high_resolution_clock::now() + chrono::milliseconds(time_limit);
     int iterations = 0;
@@ -209,10 +209,12 @@ vector<Bastion> simulated_annealing(vector<Bastion> &bastions, int time_limit = 
             }
         } else {
             temperature = max(temperature, 1e-9);
-            double acceptance_probability =
-                exp((new_value - current_value) / temperature);
-            double probability = prob_dis(gen);
-            if (probability < acceptance_probability) {
+
+            double delta = abs(current_value - new_value);
+            double threshold_probability = exp(-delta / temperature);
+            double acceptance_probability = prob_dis(gen);
+
+            if (acceptance_probability < threshold_probability) {
                 current_tour = new_tour;
                 current_value = new_value;
             }
@@ -223,6 +225,61 @@ vector<Bastion> simulated_annealing(vector<Bastion> &bastions, int time_limit = 
 
     cerr << "Iterations: " << iterations << "\n";
 
+    return best_tour;
+}
+
+vector<Bastion> simulated_greeding(vector<Bastion> &bastions, int time_limit = 3000) {
+    mt19937 gen(chrono::high_resolution_clock::now().time_since_epoch().count());
+    uniform_real_distribution<> prob_dis(0.0, 1.0);
+    uniform_int_distribution<> dis(0, bastions.size() - 1);
+
+    vector<Bastion> current_tour = bastions;
+    double current_value = gold_collected(current_tour);
+
+    vector<Bastion> best_tour = current_tour;
+    double best_value = current_value;
+
+    auto end_time =
+        chrono::high_resolution_clock::now() + chrono::milliseconds(time_limit);
+    int iterations = 0;
+    while (chrono::high_resolution_clock::now() < end_time) {
+        iterations++;
+        vector<Bastion> new_tour = current_tour;
+
+        if (new_tour.size() >= 2) {
+            int i = dis(gen), j = dis(gen);
+            int op = gen() % 3;
+            if (op == 0) {
+                if (i != j) {
+                    swap(new_tour[i], new_tour[j]);
+                }
+            } else if (op == 1) {
+                if (i > j) {
+                    swap(i, j);
+                }
+                reverse(new_tour.begin() + i, new_tour.begin() + j + 1);
+            } else {
+                if (i != j) {
+                    Bastion temp = new_tour[i];
+                    new_tour.erase(new_tour.begin() + i);
+                    new_tour.insert(new_tour.begin() + j, temp);
+                }
+            }
+        }
+
+        double new_value = gold_collected(new_tour);
+
+        if (new_value >= current_value) {
+            current_tour = new_tour;
+            current_value = new_value;
+            if (current_value > best_value) {
+                best_tour = current_tour;
+                best_value = current_value;
+            }
+        }
+    }
+
+    cerr << "Iterations: " << iterations << "\n";
     return best_tour;
 }
 
@@ -274,15 +331,26 @@ vector<Bastion> expand_path(vector<Bastion> &bastions) {
     return tour;
 }
 
-int main() {
-#ifndef ONLINE_JUDGE
-    freopen("input.txt", "r", stdin);
-    freopen("output.txt", "w", stdout);
-#endif
+vector<Bastion> multistart(vector<Bastion> bastions) {
+    if (bastions.size() < 10) {
+        return brute_force(bastions);
+    }
+    vector<Bastion> normal_greedy = greedy(bastions, "normal");
+    double normal_value = gold_collected(normal_greedy);
 
-    ios::sync_with_stdio(false);
-    cin.tie(nullptr);
+    vector<Bastion> actual_greedy = greedy(bastions, "actual");
+    double actual_value = gold_collected(actual_greedy);
 
+    if (normal_value > actual_value) {
+        return normal_greedy;
+    } else {
+        return actual_greedy;
+    }
+}
+
+double effective_score = 0;
+
+double run_single() {
     long long int no_of_total_bastions;
     cin >> no_of_total_bastions;
 
@@ -307,21 +375,14 @@ int main() {
     }
 
     vector<Bastion> tour;
-    if (reachable_bastions.size() < 10) {
-        tour = brute_force(reachable_bastions);
-    } else {
-        tour = greedy(reachable_bastions, "normal");
-        tour = simulated_annealing(tour, 2990);
-        tour = expand_path(tour);
+    tour = greedy(reachable_bastions, "normal");
+    // tour = simulated_greeding(tour);
+    tour = expand_path(tour);
 
-        if (effective_tour_length(tour) < 10) {
-            tour.resize(effective_tour_length(tour));
-            brute_force(tour);
-        }
+    if (effective_tour_length(tour) < 10) {
+        tour.resize(effective_tour_length(tour));
+        brute_force(tour);
     }
-
-    auto end_time = chrono::high_resolution_clock::now();
-    auto duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
 
     vector<Bastion> result;
     Point current_position(0, 0);
@@ -344,14 +405,62 @@ int main() {
     }
     cout << "\n";
 
-#ifndef ONLINE_JUDGE
     double total_gold = 0.0;
     for (const Bastion &bastion : total_bastions) {
         total_gold += bastion.value;
     }
-    cerr << "Gold collected: " << gold_collected << "\n";
-    cerr << "Total gold value: " << total_gold << "\n";
-    cerr << "Score: " << 200 * gold_collected / total_gold << "\n";
-    cerr << "Time taken: " << duration.count() << " ms\n";
+    double score = 200.0 * gold_collected / total_gold;
+    cerr << "Score: " << score << "\n";
+
+    double reachable_gold = 0.0;
+    for (const Bastion &bastion : reachable_bastions) {
+        reachable_gold += bastion.value;
+    }
+
+    return score;
+}
+
+double multi() {
+    double total_score = 0.0;
+    for (int i = 0; i < 50; ++i) {
+        string num = to_string(i);
+        if (i < 10) {
+            num = "0" + num;
+        }
+
+        string input_file = "input/input" + num + ".txt";
+        string output_file = "output/output" + num + ".txt";
+        freopen(input_file.c_str(), "r", stdin);
+        freopen(output_file.c_str(), "w", stdout);
+
+        cerr << "Running test case " << i + 1 << "...\n";
+        double score = run_single();
+        total_score += score;
+
+        flush(cout);
+        fflush(stdout);
+
+        fclose(stdin);
+        fclose(stdout);
+        cerr << "Output written to " << output_file << "\n";
+    }
+
+    cerr << "Total score across all test cases: " << total_score << "\n";
+    return total_score;
+}
+
+int main() {
+#ifndef ONLINE_JUDGE
+    freopen("input.txt", "r", stdin);
+    freopen("output.txt", "w", stdout);
 #endif
+
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    // run_single();
+    multi();
+
+    cerr << "Effective score: " << effective_score << "\n";
+    return 0;
 }
