@@ -3,10 +3,11 @@
         {
             "type": "cppbuild",
             "label": "C/C++: g++-14 build active file",
-            "command": "/usr/bin/g++-14",
+            "command": "/usr/bin/g++",
             "args": [
                 "-fdiagnostics-color=always",
                 "-g",
+                "-DLOCAL",
                 "${file}",
                 "-o",
                 "${fileDirname}/${fileBasenameNoExtension}.out"

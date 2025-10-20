@@ -12,6 +12,8 @@ const map<char, Step> DIR_MAP = {
     {'U', {-1, 0}}, {'D', {1, 0}}, {'L', {0, -1}}, {'R', {0, 1}}, {'S', {0, 0}}};
 const map<Step, char> RID_MAP = {
     {{-1, 0}, 'U'}, {{1, 0}, 'D'}, {{0, -1}, 'L'}, {{0, 1}, 'R'}};
+const map<char, char> opposite = {
+    {'U', 'D'}, {'D', 'U'}, {'L', 'R'}, {'R', 'L'}, {'S', 'S'}};
 
 const map<char, int> CMD_MAP = {{'U', 0}, {'D', 1}, {'L', 2}, {'R', 3}, {'S', 4}};
 const map<int, char> DMC_MAP = {{0, 'U'}, {1, 'D'}, {2, 'L'}, {3, 'R'}, {4, 'S'}};
@@ -212,6 +214,10 @@ int main() {
     for (int robot_idx = 0; robot_idx < no_robots; ++robot_idx) {
         for (int cmd_idx = 0; cmd_idx < 4; ++cmd_idx) {
             commands[cmd_idx][robot_idx] = DMC_MAP.at(cmd_idx);
+            if (robot_idx % 2) {
+                commands[cmd_idx][robot_idx] =
+                    opposite.at(commands[cmd_idx][robot_idx]);
+            }
         }
     }
 
